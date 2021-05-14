@@ -3,7 +3,9 @@
 Python ASCII image and video converter to render images and videos in a console terminal
 ![](examples/badapplebraille.gif)
 
-Renders given video file in the terminal using OpenCV and Pillow 
+Renders given video file in the terminal using OpenCV and Pillow.
+
+[video example](https://youtu.be/6DOj8AuO1G0)
 
 # User Guide
 Use `ascii.py` for single images or `videomp.py` to play videos in the console
@@ -29,7 +31,7 @@ but I only tested Windows command prompt.
 ```
 videomp.py [input file] [optional parameters]`
 ```
-The video will render to the size of the terminal window. Clicking the terminal window will pause playback. Press any
+The video will render to the size of the terminal window (might take a little bit a time). Clicking the terminal window will pause playback. Press any
 key or right click to restart playback.
 ## Options
 ```

@@ -1,0 +1,6 @@
+.idea
+/resources
+*.mp4
+*.webm
+__pycache__
+!examples/*

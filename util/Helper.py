@@ -1,6 +1,8 @@
 import os
-from util import ImageHelper
+
 from PIL import Image
+
+from util import ImageHelper
 
 DEFAULT_COLUMNS = 317
 DEFAULT_LINES = 76

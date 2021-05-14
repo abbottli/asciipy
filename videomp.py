@@ -1,10 +1,9 @@
 #!/usr/bin/python
 
 import argparse
-import fpstimer
+import math
 import multiprocessing as mp
 import os
-import vlc
 from timeit import default_timer as timer
 
 import cv2
@@ -18,6 +17,9 @@ from util.ImageType import ImageType
 
 def process_frame_range(input_filename, frames_per_process, process_number, q, save_frames=False,
                         char_type=CharType.BRAILLE, image_type=ImageType.DITHER, invert=True):
+    """
+    Process the range of images for given video
+    """
     offset = process_number * frames_per_process
     cap = cv2.VideoCapture(input_filename)
     cap.set(cv2.CAP_PROP_POS_FRAMES, offset)  # start at offset
@@ -40,11 +42,15 @@ def process_frame_range(input_filename, frames_per_process, process_number, q, s
         q.put(response)
 
         if save_frames:
-            cv2.imwrite(f'resources/frames/{frame_name}', image)  # save frame as JPEG file
+            cv2.imwrite(f'resources/frames/{frame_name}', image)  # save frame
     cap.release()
 
 
 def frame_joiner(frames, q):
+    """
+    Read from shared queue and set up the frames list until the kill message is received, then put the frames list
+    onto the queue for the parent process to use
+    """
     count = 0
     total_frames = len(frames)
     while True:  # reads from queue until all workers are done
@@ -61,50 +67,13 @@ def frame_joiner(frames, q):
     print(f'\ntotal size is {video.get_total_size(frames)}')
 
 
-def print_frames(frames, fps=30, loop=True, reference=False, filename=''):
-    """
-    output frames strings in given list one after the other. basically like a film projector
-
-    depending on the terminal, you may see images overlap or flickering for random reasons.
-    playing around with the fps might help out with that
-
-    the reference flag will start up the video in a separate vlc window.
-    the terminal might start before the vlc player is ready to play though
-    """
-    input('Successfully processed video. Press enter to play ascii video...')
-
-    fps_timer = fpstimer.FPSTimer(fps)
-
-    if reference:
-        # creating vlc media player object
-        media = vlc.MediaPlayer(filename)
-
-        # start playing video
-        media.play()
-        # time.sleep(.4)
-
-    video.clear()
-    start = timer()
-    while True:
-        try:
-            for frame in frames:
-                # clear()  # makes the screen flicker and is super slow
-                print(frame, end='')
-                fps_timer.sleep()
-                # time.sleep(rate)  # not super accurate but w/e
-            if not loop:
-                break
-        except KeyboardInterrupt:
-            break
-    end = timer()
-    print(f'played video for {end - start : .2f}s')
-
-
 def main():
-    parser = argparse.ArgumentParser(description="Display video in terminal")
+    # set up input parameters
+    parser = argparse.ArgumentParser(description="Displays video in terminal")
     parser.add_argument('file', help='input file')
     parser.add_argument('-loop', action='store_true', help='loop video')
-    parser.add_argument('-ref', action='store_true', help='display reference video')
+    parser.add_argument('-ref', action='store_true', help='display reference video.'
+                                                          ' need to add delay to sync properly with vlc player')
     parser.add_argument('-invert', action='store_false', help='invert video colors. assuming the text is white')
     parser.add_argument('-char', default='braille',
                         choices=['braille', 'matrix', 'ascii'],
@@ -112,6 +81,7 @@ def main():
     parser.add_argument('-image', default='dither',
                         choices=['dither', 'halftone', 'gray', 'black_white', 'silhouette'],
                         help='image conversion type')
+    parser.add_argument('-fps', type=int, help='override display fps')
 
     args = parser.parse_args()
 
@@ -123,7 +93,9 @@ def main():
     loop = args.loop
     reference = args.ref
     save_frames = False
+    fps = args.fps
 
+    # folder setup
     if not os.path.exists('resources'):
         os.makedirs('resources')
     if not os.path.exists('resources/frames'):
@@ -131,32 +103,34 @@ def main():
     if not os.path.exists('resources/output'):
         os.makedirs('resources/output')
 
-    # open video to get some property values
+    # temp open video to get some property values
     cap = cv2.VideoCapture(input_filename)
 
     # get video properties
     total_frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps is None:
+        fps = cap.get(cv2.CAP_PROP_FPS)
     duration = total_frame_count / fps
     cap.release()
 
     # init frames storage
     frames = [None] * total_frame_count
 
+    # multiprocessing setup
     process_count = mp.cpu_count()
     manager = mp.Manager()
     q = manager.Queue()
     pool = mp.Pool(process_count)  # payment search endpoint has a rate limit so this can't be too high
 
-    watcher = pool.apply_async(frame_joiner, (frames, q))
+    listener = pool.apply_async(frame_joiner, (frames, q))
 
     # fire off workers
     jobs = []
-
     start = timer()
-    frames_per_process = (total_frame_count // process_count) + 1  #
+    frames_per_process = math.ceil(total_frame_count / process_count)
 
     for i in range(process_count):
+        # each process is given a range of frames to convert
         job = pool.apply_async(process_frame_range, (input_filename, frames_per_process, i, q,
                                                      save_frames, char_type, image_type, invert))
         jobs.append(job)
@@ -168,15 +142,16 @@ def main():
     # now we are done, kill the listener
     q.put('kill')
     print('\nRetrieving frame data')
-    frames = q.get()  # get data back from joiner
+    frames = q.get()  # get data back from listener
+    listener.get()
     pool.close()
     pool.join()
 
     end = timer()
     print(f'\nconverted {len(frames)} frames to ascii in {end - start : .2f}s')
-    # increase fps to > 30 if the video starts flickering/ you can see overlapping images
+    # increase fps to > 30 if the video starts flickering or if you can see overlapping images
 
-    print_frames(frames, fps=fps, loop=loop, reference=reference, filename=input_filename)
+    video.print_frames(frames, fps=fps, loop=loop, reference=reference, filename=input_filename)
     print(f'other stats: total frames={total_frame_count}, fps={fps}, original_duration={duration : .2f}s')
 
 

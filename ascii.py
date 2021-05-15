@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import colorama
 import math
 import sys
 
@@ -7,13 +8,25 @@ from PIL import Image
 
 from util import Helper, ImageHelper
 from util.CharType import CharType, maps as char_maps
+from util.Colors import RGB, Colors
 from util.ImageType import ImageType
+
 
 BRAILLE_BASE = int('0x2800', 16)
 
 
-def convert(pixel, char_type=CharType.ASCII):
-    return char_maps[char_type][pixel // (256 // len(char_maps[char_type]))]
+def color_to_gray(color):
+    r, g, b = color
+    return int(.3 * r + .59 * g + .11 * b)
+
+
+def convert(pixel, char_type=CharType.ASCII, use_color=False):
+    header, footer = '', ''
+    if use_color:
+        header = RGB[pixel].value
+        footer = Colors.END.value
+        pixel = 0
+    return f'{header}{char_maps[char_type][pixel // (256 // len(char_maps[char_type]))]}{footer}'
 
 
 def convert_to_braille(image, threshold=128, use_dot_spacing=False):
@@ -43,7 +56,7 @@ def convert_to_braille(image, threshold=128, use_dot_spacing=False):
     return text
 
 
-def convert_to_text(image, char_type=CharType.ASCII):
+def convert_to_text(image, char_type=CharType.ASCII, use_color=False):
     if char_type == CharType.BRAILLE:
         return convert_to_braille(image)
 
@@ -52,7 +65,7 @@ def convert_to_text(image, char_type=CharType.ASCII):
     for y in range(image.height):
         text.append([])
         for x in range(image.width):
-            text[y].append(convert(data[x, y], char_type))
+            text[y].append(convert(data[x, y], char_type, use_color))
 
     return text
 
@@ -65,7 +78,7 @@ def setup_text_image(text):
 
 
 def store_text(text, input_filename):
-    with open(ImageHelper.resource_folder(f'output/{input_filename}.txt'), 'w', encoding='utf-8') as output_file:
+    with open(ImageHelper.resource_folder(f'output/{input_filename.replace("/", "-")}.txt'), 'w', encoding='utf-8') as output_file:
         output_file.write(text)
 
 
@@ -95,7 +108,7 @@ def to_ascii_from_image(image, name='image', invert=True, char_type=CharType.BRA
 
     image = ImageHelper.convert_image(image, image_type)
 
-    text_array = convert_to_text(image, char_type)
+    text_array = convert_to_text(image, char_type, image_type.name.startswith(ImageType.COLOR.name))
 
     ascii_text = setup_text_image(text_array)
     if ImageHelper.DEBUG:
@@ -104,8 +117,9 @@ def to_ascii_from_image(image, name='image', invert=True, char_type=CharType.BRA
     return ascii_text
 
 
-def to_ascii(input_filename):
-    return to_ascii_from_image(Image.open(input_filename).convert('RGB'), input_filename)
+def to_ascii(input_filename, invert=True, char_type=CharType.BRAILLE, image_type=ImageType.DITHER):
+    return to_ascii_from_image(Image.open(input_filename).convert('RGB'), input_filename,
+                               invert=invert, char_type=char_type, image_type=image_type)
 
 
 def main():
@@ -113,10 +127,16 @@ def main():
         raise RuntimeError('Usage: this_script.py <input file>')
     input_filename = sys.argv[1]
 
-    text = to_ascii(input_filename)
+    invert = False
+    char_type = CharType.MATRIX
+    image_type = ImageType.COLOR_DITHER
+
+    text = to_ascii(input_filename, invert, char_type, image_type)
     print(text)
 
 
 if __name__ == '__main__':
+    colorama.init()
     main()
+    colorama.deinit()
     # input('Press enter to exit')

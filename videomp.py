@@ -76,10 +76,10 @@ def main():
                                                           ' need to add delay to sync properly with vlc player')
     parser.add_argument('-invert', action='store_false', help='invert video colors. assuming the text is white')
     parser.add_argument('-char', default='braille',
-                        choices=['braille', 'matrix', 'ascii'],
+                        choices=[x.name.lower() for x in CharType],
                         help='character conversion type')
     parser.add_argument('-image', default='dither',
-                        choices=['dither', 'halftone', 'gray', 'black_white', 'silhouette'],
+                        choices=[x.name.lower() for x in ImageType],
                         help='image conversion type')
     parser.add_argument('-fps', type=int, help='override display fps')
 

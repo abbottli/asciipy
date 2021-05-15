@@ -2,5 +2,7 @@
 /resources
 *.mp4
 *.webm
+*.png
+*.jpg
 __pycache__
 !examples/*

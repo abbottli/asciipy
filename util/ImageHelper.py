@@ -1,13 +1,15 @@
 import os
+import math
 
 from PIL import Image, ImageOps
 
+from util.Colors import RGB
 from util.ImageType import ImageType
 
 RESOURCE_FOLDER = 'resources'
 BLACK = 255
 WHITE = 0
-DEBUG = False
+DEBUG = True
 
 
 def resource_folder(file):
@@ -25,6 +27,66 @@ def convert_image(image, convert_type=ImageType.DITHER):
         return gray(image)
     elif ImageType.SILHOUETTE == convert_type:
         return silhouette(image)
+    elif ImageType.COLOR == convert_type:
+        return nearest_color(image, RGB.keys(), is_dither=False)
+    elif ImageType.COLOR_DITHER == convert_type:
+        return nearest_color(image, RGB.keys(), is_dither=True)
+
+
+def nearest_color(image, color_map, is_dither=True):
+    image = remove_transparent(image)
+
+    if is_dither:
+        image = color_dither_image(image)
+
+    image = image.convert('RGB')
+    width, height = image.size
+    pixels = image.load()
+    cache = {}
+
+    for x in range(width):
+        for y in range(height):
+            color = pixels[x, y]
+            if color in cache:
+                pixels[x, y] = cache[color]
+            else:
+                near = find_nearest_color(color_map, color)
+                pixels[x, y] = near
+                cache[color] = near
+
+    if DEBUG:
+        image.save(resource_folder('nearest_color.png'))
+    return image
+
+
+# color closeness approximation from https://www.compuphase.com/cmetric.htm
+# formula is a low cost approximation of the red weighted distance
+def distance(c1, c2):
+    r1, g1, b1 = c1
+    r2, g2, b2 = c2
+    r_mean = int((r1 + r2) / 2)
+    r = r1 - r2
+    g = g1 - g2
+    b = b1 - b2
+    return math.sqrt((((512 + r_mean) * r * r) >> 8) + 4 * g * g + (((767 - r_mean) * b * b) >> 8))
+
+
+def find_nearest_color(color_map, color):
+    return min(color_map, key=lambda c: distance(color, c))
+
+
+# remove transparent pixels by pasting original image over white background
+def remove_transparent(image):
+    no_transparent = Image.new("RGB", image.size, "WHITE")
+    no_transparent.paste(image, (0, 0), image.convert('RGBA'))
+    return no_transparent
+
+
+def color_dither_image(image):
+    image = image.convert('P', dither=Image.FLOYDSTEINBERG)
+    if DEBUG:
+        image.save(resource_folder('color_dither.png'))
+    return image
 
 
 def gray(image):

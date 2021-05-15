@@ -94,11 +94,6 @@ Additionally, this is using a basic approach to divide work via multiprocessing.
 will only attempt to process their given range of frames, even if they finish early and there's still stuff left to
 process.
 
-We can expand on this design by using an input queue that each of the workers read off of. Basically a messaging queue,
-where the main process publishes indices to process into a queue and each work reads off of. With each message, they'll
-navigate to the given frame index, process the image, and output it onto the output queue. This will increase
-utilization, but the performance impact might only be minor.
-
 Some colors can also be used if the terminal supports the respective ANSI escape codes.  
 
 # Known Issues

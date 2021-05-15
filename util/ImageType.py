@@ -7,3 +7,5 @@ class ImageType(Enum):
     HALFTONE = 2
     GRAY = 3
     SILHOUETTE = 4
+    COLOR = 5
+    COLOR_DITHER = 6
